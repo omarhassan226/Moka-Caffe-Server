@@ -29,7 +29,11 @@ app.use(async (req, res, next) => {
     next();
   } catch (err) {
     console.error("Database connection failure:", err.message);
-    next(err);
+    return res.status(500).json({
+      success: false,
+      error: err.message,
+      tip: "Please make sure MONGODB_URI is configured in Vercel Project Settings > Environment Variables, and MongoDB Atlas Network Access includes 0.0.0.0/0."
+    });
   }
 });
 
