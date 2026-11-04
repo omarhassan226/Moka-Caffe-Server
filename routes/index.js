@@ -1,6 +1,7 @@
 const express = require("express");
 const itemsRoutes = require("./items");
 const ordersRoutes = require("./orders");
+const accountingRoutes = require("./accounting");
 const { getConnectionStatus } = require("../config/db");
 
 const router = express.Router();
@@ -8,6 +9,7 @@ const router = express.Router();
 // Mount resources
 router.use("/items", itemsRoutes);
 router.use("/orders", ordersRoutes);
+router.use("/accounting", accountingRoutes);
 
 // Central API Health Check
 router.get("/health", (req, res) => {
