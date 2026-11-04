@@ -3,14 +3,15 @@ const AiInvoiceService = require("../services/aiInvoiceService");
 const asyncHandler = require("../middlewares/asyncHandler");
 
 /**
- * @desc Scan invoice photo with AI Vision
+ * @desc Scan invoice photo with AI Vision (supports multi-page invoices)
  * @route POST /api/accounting/invoices/scan
  */
 const scanInvoiceImage = asyncHandler(async (req, res) => {
-  const { imageData, apiKey } = req.body;
+  const { imageData, images, apiKey } = req.body;
   const headerKey = req.headers["x-gemini-api-key"];
   const result = await AiInvoiceService.scanInvoice({
     imageData,
+    images,
     apiKey: apiKey || headerKey
   });
   res.json(result);
@@ -37,14 +38,18 @@ const getInvoices = asyncHandler(async (req, res) => {
 });
 
 /**
- * @desc Create new invoice with optional image
+ * @desc Create new invoice with optional multi-page images
  * @route POST /api/accounting/invoices
  */
 const createInvoice = asyncHandler(async (req, res) => {
-  const { invoiceNumber, supplier, category, amount, invoiceDate, imageData, notes } = req.body;
+  const { invoiceNumber, supplier, category, amount, invoiceDate, imageData, images, notes } = req.body;
   if (!supplier || amount === undefined || amount === null) {
     return res.status(400).json({ error: "اسم المورد والمبلغ مطلوبان" });
   }
+
+  const imagesList = Array.isArray(images) && images.length > 0
+    ? images
+    : (imageData ? [imageData] : []);
 
   const invoice = await AccountingService.createInvoice({
     invoiceNumber,
@@ -52,11 +57,43 @@ const createInvoice = asyncHandler(async (req, res) => {
     category,
     amount: Number(amount),
     invoiceDate: invoiceDate ? new Date(invoiceDate) : new Date(),
-    imageData: imageData || "",
+    imageData: imagesList[0] || imageData || "",
+    images: imagesList,
+    pageCount: imagesList.length || 1,
     notes: notes || ""
   });
 
   res.status(201).json(invoice);
+});
+
+/**
+ * @desc Update invoice
+ * @route PUT /api/accounting/invoices/:id
+ */
+const updateInvoice = asyncHandler(async (req, res) => {
+  const { invoiceNumber, supplier, category, amount, invoiceDate, imageData, images, notes } = req.body;
+  
+  const updateData = {};
+  if (invoiceNumber !== undefined) updateData.invoiceNumber = invoiceNumber;
+  if (supplier !== undefined) updateData.supplier = supplier;
+  if (category !== undefined) updateData.category = category;
+  if (amount !== undefined) updateData.amount = Number(amount);
+  if (invoiceDate !== undefined) updateData.invoiceDate = new Date(invoiceDate);
+  if (notes !== undefined) updateData.notes = notes;
+
+  if (images !== undefined) {
+    updateData.images = Array.isArray(images) ? images : (images ? [images] : []);
+    updateData.pageCount = updateData.images.length || 1;
+    updateData.imageData = updateData.images[0] || "";
+  } else if (imageData !== undefined) {
+    updateData.imageData = imageData;
+  }
+
+  const invoice = await AccountingService.updateInvoice(req.params.id, updateData);
+  if (!invoice) {
+    return res.status(404).json({ error: "الفاتورة غير موجودة" });
+  }
+  res.json(invoice);
 });
 
 /**
@@ -169,6 +206,7 @@ module.exports = {
   getMonthlySummary,
   getInvoices,
   createInvoice,
+  updateInvoice,
   deleteInvoice,
   scanInvoiceImage,
   getWasteRecords,
@@ -178,4 +216,3 @@ module.exports = {
   createSalesRecord,
   deleteSalesRecord
 };
-

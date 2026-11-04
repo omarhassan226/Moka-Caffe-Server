@@ -3,6 +3,7 @@ const {
   getMonthlySummary,
   getInvoices,
   createInvoice,
+  updateInvoice,
   deleteInvoice,
   scanInvoiceImage,
   getWasteRecords,
@@ -22,6 +23,7 @@ router.get("/summary", getMonthlySummary);
 router.get("/invoices", getInvoices);
 router.post("/invoices", createInvoice);
 router.post("/invoices/scan", scanInvoiceImage);
+router.put("/invoices/:id", updateInvoice);
 router.delete("/invoices/:id", deleteInvoice);
 
 // Waste (الهالك والضايع)

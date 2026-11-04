@@ -1,21 +1,24 @@
 /**
  * Móka Caffe - AI Invoice OCR & Vision Service
  * Uses Google Gemini Vision API to extract structured financial data from receipt photos:
+ * - Supports Multi-Page Invoices (up to 10+ pages in a single invoice)
+ * - Automatically aggregates line items and sums grand total across all pages
  * - Supplier Name (اسم المورد / المحل)
- * - Total Amount (المبلغ الإجمالي)
- * - Date (تاريخ الفاتورة)
- * - Invoice Number (رقم الفاتورة)
- * - Category (التصنيف المحاسبي للكافيه)
- * - Line items & notes
+ * - Date & Invoice Number
+ * - Category classification
  */
 
 class AiInvoiceService {
   /**
-   * Extract invoice data from base64 image using Gemini Vision
+   * Extract invoice data from one or multiple base64 images using Gemini Vision
    */
-  static async scanInvoice({ imageData, apiKey: customApiKey }) {
-    if (!imageData) {
-      const error = new Error("لم يتم إرسال صورة الفاتورة");
+  static async scanInvoice({ imageData, images, apiKey: customApiKey }) {
+    const imagesList = Array.isArray(images) && images.length > 0
+      ? images
+      : (imageData ? [imageData] : []);
+
+    if (imagesList.length === 0) {
+      const error = new Error("لم يتم إرسال أي صورة للفاتورة");
       error.status = 400;
       throw error;
     }
@@ -37,22 +40,41 @@ class AiInvoiceService {
       };
     }
 
-    // Prepare Base64 payload (strip data:image/...;base64, prefix if present)
-    let mimeType = "image/jpeg";
-    let base64Data = imageData;
+    // Prepare Base64 payload for all pages
+    const imageParts = imagesList.map((imgStr) => {
+      let mimeType = "image/jpeg";
+      let base64Data = imgStr;
 
-    const dataUrlMatch = imageData.match(/^data:([^;]+);base64,(.+)$/);
-    if (dataUrlMatch) {
-      mimeType = dataUrlMatch[1];
-      base64Data = dataUrlMatch[2];
-    }
+      const dataUrlMatch = imgStr.match(/^data:([^;]+);base64,(.+)$/);
+      if (dataUrlMatch) {
+        mimeType = dataUrlMatch[1];
+        base64Data = dataUrlMatch[2];
+      }
+
+      return {
+        inlineData: {
+          mimeType: mimeType,
+          data: base64Data
+        }
+      };
+    });
+
+    const pageCount = imagesList.length;
+    const multiPageInstruction = pageCount > 1
+      ? `\nتنبيه هام جداً: هذه الفاتورة تتكون من (${pageCount}) صفحات مرفقة بالترتيب كصور متعددة لفاتورة واحدة.
+1. راجع جميع الصفحات بالكامل من أول صفحة حتى آخر صفحة.
+2. اجمع قائمة الأصناف من كافة الصفحات.
+3. احتسب المبلغ الإجمالي النهائي (Total / Grand Total / الصافي الشامل) لكافة الصفحات معاً:
+   - إذا كانت الصفحة الأخيرة تحتوي على الإجمالي الكلي النهائي الشامل لكافة الصفحات فاعتمد هذا الإجمالي مباشرة.
+   - إذا كانت كل صفحة تحتوي على مجموع فرعي مستقل، قم بجمع المجاميع الفرعية لتصل إلى إجمالي الفاتورة النهائي بدقة حسابية تامة.`
+      : "";
 
     const systemPrompt = `
 أنت خبير محاسبي متخصص في قراءة وتحليل فواتير وإيصالات الكافيهات والمطاعم في مصر.
-حلل صورة هذه الفاتورة بدقة، واستخرج البيانات التالية بصيغة JSON حصراً بدون أي نصوص إضافية:
+حلل صور هذه الفاتورة بدقة، واستخرج البيانات التالية بصيغة JSON حصراً بدون أي نصوص إضافية:${multiPageInstruction}
 {
   "supplier": "اسم المورد أو المحل أو الشركة (مثال: بن النجار، ألبان جهينة، محمصات، سوبر ماركت)",
-  "amount": 0.00, // المبلغ الإجمالي النهائي المطلوب دفعه (الصافي أو Total) كقيمة رقمية Number فقط
+  "amount": 0.00, // المبلغ الإجمالي النهائي الشامل لكافة الصفحات كقيمة رقمية Number فقط
   "invoiceDate": "YYYY-MM-DD", // تاريخ الفاتورة، إذا كانت السنة غير واضحة اعتمد السنة الحالية
   "invoiceNumber": "", // رقم الفاتورة أو الإيصال إن وجد
   "category": "خامات وبن", // اختر واحداً فقط بدقة من: ["خامات وبن", "ألبان وسيرب", "حلويات ومخبوزات", "تعبئة وتغليف", "نظافة ومستهلكات", "صيانة وتشغيل", "أخرى"]
@@ -60,9 +82,9 @@ class AiInvoiceService {
     { "name": "اسم الصنف", "quantity": 1, "price": 0, "total": 0 }
   ],
   "taxAmount": 0, // قيمة الضريبة إن وجدت
-  "notes": "ملخص أهم الأصناف المشتراة أو أي ملاحظة مهمة"
+  "notes": "ملخص أهم الأصناف وعدد الصفحات (${pageCount} صفحات)"
 }
-تأكد من أن amount هو الرقم النهائي الإجمالي الشامل في الفاتورة.
+تأكد من أن amount هو الرقم النهائي الإجمالي الشامل لكافة صفحات الفاتورة.
 أجب بصيغة JSON صريحة فقط.
 `;
 
@@ -71,12 +93,7 @@ class AiInvoiceService {
         {
           parts: [
             { text: systemPrompt },
-            {
-              inlineData: {
-                mimeType: mimeType,
-                data: base64Data
-              }
-            }
+            ...imageParts
           ]
         }
       ],
@@ -132,6 +149,7 @@ class AiInvoiceService {
         return {
           success: true,
           modelUsed: model,
+          pageCount: pageCount,
           data: {
             supplier: parsed.supplier || "فاتورة مشتريات",
             amount: parseFloat(parsed.amount) || 0,
@@ -140,7 +158,7 @@ class AiInvoiceService {
             category: parsed.category || "خامات وبن",
             items: parsed.items || [],
             taxAmount: parseFloat(parsed.taxAmount) || 0,
-            notes: parsed.notes || ""
+            notes: parsed.notes || `فاتورة من ${pageCount} صفحة/صفحات`
           }
         };
       } catch (err) {
@@ -154,4 +172,3 @@ class AiInvoiceService {
 }
 
 module.exports = AiInvoiceService;
-

@@ -119,6 +119,33 @@ class AccountingService {
     return invoice;
   }
 
+  static async updateInvoice(id, data) {
+    const invoice = await Invoice.findById(id);
+    if (!invoice) return null;
+
+    if (data.invoiceNumber !== undefined) invoice.invoiceNumber = data.invoiceNumber;
+    if (data.supplier !== undefined) invoice.supplier = data.supplier;
+    if (data.category !== undefined) invoice.category = data.category;
+    if (data.amount !== undefined) invoice.amount = Number(data.amount);
+    if (data.invoiceDate !== undefined) invoice.invoiceDate = new Date(data.invoiceDate);
+    if (data.notes !== undefined) invoice.notes = data.notes;
+
+    if (data.images !== undefined) {
+      invoice.images = Array.isArray(data.images) ? data.images : (data.images ? [data.images] : []);
+      invoice.pageCount = invoice.images.length || 1;
+      invoice.imageData = invoice.images[0] || "";
+    } else if (data.imageData !== undefined) {
+      invoice.imageData = data.imageData;
+      if (!invoice.images || invoice.images.length === 0) {
+        invoice.images = data.imageData ? [data.imageData] : [];
+        invoice.pageCount = invoice.images.length || 1;
+      }
+    }
+
+    await invoice.save();
+    return invoice;
+  }
+
   static async deleteInvoice(id) {
     return await Invoice.findByIdAndDelete(id);
   }

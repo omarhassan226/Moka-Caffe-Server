@@ -31,8 +31,16 @@ const InvoiceSchema = new mongoose.Schema(
       index: true
     },
     imageData: {
-      type: String, // Base64 data URL or external URL
+      type: String, // Primary/cover base64 image
       default: ""
+    },
+    images: {
+      type: [String], // Array of images for multi-page invoices (up to 10+ pages)
+      default: []
+    },
+    pageCount: {
+      type: Number,
+      default: 1
     },
     notes: {
       type: String,
@@ -49,8 +57,19 @@ InvoiceSchema.pre("save", function (next) {
     const mm = String(d.getMonth() + 1).padStart(2, "0");
     this.month = `${yyyy}-${mm}`;
   }
+
+  // Handle multi-image pages synchronization
+  if (Array.isArray(this.images) && this.images.length > 0) {
+    this.pageCount = this.images.length;
+    if (!this.imageData) {
+      this.imageData = this.images[0];
+    }
+  } else if (this.imageData) {
+    this.images = [this.imageData];
+    this.pageCount = 1;
+  }
+
   next();
 });
 
 module.exports = mongoose.model("Invoice", InvoiceSchema);
-
