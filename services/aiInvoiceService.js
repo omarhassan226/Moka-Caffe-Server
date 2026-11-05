@@ -63,29 +63,48 @@ class AiInvoiceService {
     const multiPageInstruction = pageCount > 1
       ? `\nتنبيه هام جداً: هذه الفاتورة تتكون من (${pageCount}) صفحات مرفقة بالترتيب كصور متعددة لفاتورة واحدة.
 1. راجع جميع الصفحات بالكامل من أول صفحة حتى آخر صفحة.
-2. اجمع قائمة الأصناف من كافة الصفحات.
-3. احتسب المبلغ الإجمالي النهائي (Total / Grand Total / الصافي الشامل) لكافة الصفحات معاً:
-   - إذا كانت الصفحة الأخيرة تحتوي على الإجمالي الكلي النهائي الشامل لكافة الصفحات فاعتمد هذا الإجمالي مباشرة.
-   - إذا كانت كل صفحة تحتوي على مجموع فرعي مستقل، قم بجمع المجاميع الفرعية لتصل إلى إجمالي الفاتورة النهائي بدقة حسابية تامة.`
+2. استخرج قائمة الأصناف المشتراة من كافة الصفحات بدقة.
+3. تفصيل الصفحات: حدد المجموع الفرعي لكل صفحة في pageBreakdown.
+4. احتسب المجاميع الحسابية الإجمالية بدقة متناهية:
+   - المبلغ الإجمالي قبل الضريبة (subtotal)
+   - قيمة الضريبة المضافة وضريبة الجدول إن وجدت (taxAmount)
+   - الإجمالي النهائي الشامل المطلوب سداده لكافة الصفحات (amount: Grand Total)`
       : "";
 
     const systemPrompt = `
-أنت خبير محاسبي متخصص في قراءة وتحليل فواتير وإيصالات الكافيهات والمطاعم في مصر.
-حلل صور هذه الفاتورة بدقة، واستخرج البيانات التالية بصيغة JSON حصراً بدون أي نصوص إضافية:${multiPageInstruction}
+أنت مدقق حسابات وخبير محاسبي عالي الدقة في قراءة وتحليل فواتير وإيصالات الكافيهات والمطاعم في مصر.
+مهمتك استخراج وتدقيق البيانات بدقة حسابية متناهية (100% Accurate OCR):${multiPageInstruction}
+
+قواعد التدقيق الحسابي الإلزامية:
+1. دقة الأرقام والكسور العشرية: انتبه بدقة شديدة للفاصلة العشرية والكسور (مثال: 8,364.75 أو 9,034.09 أو 125.50). لا تتجاهل القروش أو الفواصل.
+2. التفريق الدقيق بين المبالغ:
+   - subtotal: المجموع قبل الضريبة (صافي قيمة البضاعة/الأصناف بدون ضرائب).
+   - taxAmount: إجمالي قيمة الضرائب (ضريبة القيمة المضافة 14% + ضريبة الجدول 5% إن وجدت).
+   - amount: الإجمالي النهائي الشامل لكافة الضرائب والخدمة والمطلوب دفعه (Grand Total).
+3. استخراج تفاصيل الأصناف (items):
+   - اسم الصنف، الكمية، سعر الوحدة، الإجمالي (الكمية × السعر = الإجمالي).
+4. تفصيل الصفحات (pageBreakdown):
+   - رقم كل صفحة والمجموع الخاص بها.
+5. تاريخ الفاتورة ورقمها: استخرج التاريخ الفعلي المطبوع على الفاتورة (YYYY-MM-DD) ورقم الإيصال/الفاتورة.
+6. التصنيف: اختر واحداً فقط من: ["خامات وبن", "ألبان وسيرب", "حلويات ومخبوزات", "تعبئة وتغليف", "نظافة ومستهلكات", "صيانة وتشغيل", "أخرى"].
+
+أجب بصيغة JSON حصراً بدون أي نصوص أو markdown codeblocks إضافية:
 {
-  "supplier": "اسم المورد أو المحل أو الشركة (مثال: بن النجار، ألبان جهينة، محمصات، سوبر ماركت)",
-  "amount": 0.00, // المبلغ الإجمالي النهائي الشامل لكافة الصفحات كقيمة رقمية Number فقط
-  "invoiceDate": "YYYY-MM-DD", // تاريخ الفاتورة، إذا كانت السنة غير واضحة اعتمد السنة الحالية
-  "invoiceNumber": "", // رقم الفاتورة أو الإيصال إن وجد
-  "category": "خامات وبن", // اختر واحداً فقط بدقة من: ["خامات وبن", "ألبان وسيرب", "حلويات ومخبوزات", "تعبئة وتغليف", "نظافة ومستهلكات", "صيانة وتشغيل", "أخرى"]
+  "supplier": "اسم المورد أو الشركة أو المحل",
+  "subtotal": 0.00,
+  "taxAmount": 0.00,
+  "amount": 0.00,
+  "invoiceDate": "YYYY-MM-DD",
+  "invoiceNumber": "رقم الفاتورة أو الإيصال إن وجد",
+  "category": "خامات وبن",
   "items": [
-    { "name": "اسم الصنف", "quantity": 1, "price": 0, "total": 0 }
+    { "name": "اسم الصنف", "quantity": 1, "price": 0.00, "total": 0.00 }
   ],
-  "taxAmount": 0, // قيمة الضريبة إن وجدت
-  "notes": "ملخص أهم الأصناف وعدد الصفحات (${pageCount} صفحات)"
+  "pageBreakdown": [
+    { "page": 1, "total": 0.00, "note": "تفاصيل صفحة 1" }
+  ],
+  "notes": "ملخص التدقيق الحسابي وتأكيد مطابقة إجمالي الأصناف مع الفاتورة"
 }
-تأكد من أن amount هو الرقم النهائي الإجمالي الشامل لكافة صفحات الفاتورة.
-أجب بصيغة JSON صريحة فقط.
 `;
 
     const requestBody = {
@@ -103,15 +122,15 @@ class AiInvoiceService {
       }
     };
 
-    // Prioritized models: gemini-3.5-flash has instant 200 response without 503 demand spikes
+    // Prioritized models: gemini-3.1-flash-lite and gemini-flash-lite-latest have active quota & instant response
     const models = [
-      "gemini-3.5-flash",
+      "gemini-3.1-flash-lite",
+      "gemini-flash-lite-latest",
       "gemini-3.5-flash-lite",
+      "gemini-3.5-flash",
       "gemini-3.6-flash",
       "gemini-3.7-flash",
-      "gemini-3.8-flash",
-      "gemini-3.1-flash-lite",
-      "gemini-flash-lite-latest"
+      "gemini-3.8-flash"
     ];
     let lastError = null;
 
@@ -152,12 +171,14 @@ class AiInvoiceService {
           pageCount: pageCount,
           data: {
             supplier: parsed.supplier || "فاتورة مشتريات",
+            subtotal: parseFloat(parsed.subtotal) || 0,
+            taxAmount: parseFloat(parsed.taxAmount) || 0,
             amount: parseFloat(parsed.amount) || 0,
             invoiceDate: parsed.invoiceDate || new Date().toISOString().split("T")[0],
             invoiceNumber: parsed.invoiceNumber || "",
             category: parsed.category || "خامات وبن",
             items: parsed.items || [],
-            taxAmount: parseFloat(parsed.taxAmount) || 0,
+            pageBreakdown: parsed.pageBreakdown || [],
             notes: parsed.notes || `فاتورة من ${pageCount} صفحة/صفحات`
           }
         };
