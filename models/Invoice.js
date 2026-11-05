@@ -32,6 +32,9 @@ const InvoiceSchema = new mongoose.Schema(
     taxDetails: {
       vat14: { type: Number, default: 0 },
       schedule5: { type: Number, default: 0 },
+      hasVat14: { type: Boolean, default: false },
+      hasSchedule5: { type: Boolean, default: false },
+      taxesSummary: { type: Array, default: [] },
       other: { type: Number, default: 0 }
     },
     items: [
