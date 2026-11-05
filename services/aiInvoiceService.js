@@ -208,17 +208,42 @@ class AiInvoiceService {
 
         const itemsSubtotal = items.reduce((s, it) => s + it.totalPrice, 0);
         const itemsTaxInclSum = items.reduce((s, it) => s + it.taxIncluded, 0);
-        const untaxedSubtotal = Number(parsed.untaxedSubtotal || parsed.subtotal) || parseFloat(itemsSubtotal.toFixed(2));
-        const grandTotal = Number(parsed.grandTotal || parsed.amount) || parseFloat(itemsTaxInclSum.toFixed(2));
+
+        // Ground truth: When items are extracted, their exact mathematical sum is the true audited invoice total
+        const untaxedSubtotal = items.length > 0
+          ? parseFloat(itemsSubtotal.toFixed(2))
+          : (Number(parsed.untaxedSubtotal || parsed.subtotal) || 0);
+
+        const grandTotal = items.length > 0
+          ? parseFloat(itemsTaxInclSum.toFixed(2))
+          : (Number(parsed.grandTotal || parsed.amount) || 0);
         
         // Strict dynamic taxes from invoice
         const rawVat14 = Number(parsed.vat14) || 0;
         const rawSchedule5 = Number(parsed.schedule5) || 0;
         const hasVat14 = Boolean(parsed.hasVat14 || rawVat14 > 0);
         const hasSchedule5 = Boolean(parsed.hasSchedule5 || rawSchedule5 > 0);
-        const vat14 = hasVat14 ? parseFloat(rawVat14.toFixed(2)) : 0;
-        const schedule5 = hasSchedule5 ? parseFloat(rawSchedule5.toFixed(2)) : 0;
-        const taxAmount = Number(parsed.taxAmount) || parseFloat((grandTotal - untaxedSubtotal).toFixed(2));
+        let vat14 = hasVat14 ? parseFloat(rawVat14.toFixed(2)) : 0;
+        let schedule5 = hasSchedule5 ? parseFloat(rawSchedule5.toFixed(2)) : 0;
+        const taxAmount = parseFloat((grandTotal - untaxedSubtotal).toFixed(2));
+
+        // If items-level taxes exist and differ from partial footer, align tax breakdown with items
+        if (items.length > 0 && Math.abs((vat14 + schedule5) - taxAmount) > 0.05) {
+          let v14 = 0;
+          let s5 = 0;
+          items.forEach(it => {
+            const itemTax = it.taxIncluded - it.totalPrice;
+            if (itemTax > 0) {
+              const t = String(it.taxType || "").toUpperCase();
+              if (t.includes("14") || t.includes("VAT")) v14 += itemTax;
+              else if (t.includes("5") || t.includes("SCHD")) s5 += itemTax;
+            }
+          });
+          if (v14 > 0 || s5 > 0) {
+            vat14 = parseFloat(v14.toFixed(2));
+            schedule5 = parseFloat(s5.toFixed(2));
+          }
+        }
 
         // Group items by page for clean breakdown
         const pageGroups = {};
