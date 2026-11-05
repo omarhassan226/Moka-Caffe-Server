@@ -42,7 +42,7 @@ const getInvoices = asyncHandler(async (req, res) => {
  * @route POST /api/accounting/invoices
  */
 const createInvoice = asyncHandler(async (req, res) => {
-  const { invoiceNumber, supplier, category, amount, invoiceDate, imageData, images, notes } = req.body;
+  const { invoiceNumber, supplier, category, amount, subtotal, taxAmount, taxDetails, items, pageBreakdown, invoiceDate, imageData, images, notes } = req.body;
   if (!supplier || amount === undefined || amount === null) {
     return res.status(400).json({ error: "اسم المورد والمبلغ مطلوبان" });
   }
@@ -56,6 +56,11 @@ const createInvoice = asyncHandler(async (req, res) => {
     supplier,
     category,
     amount: Number(amount),
+    subtotal: subtotal !== undefined ? Number(subtotal) : 0,
+    taxAmount: taxAmount !== undefined ? Number(taxAmount) : 0,
+    taxDetails: taxDetails || { vat14: 0, schedule5: 0 },
+    items: Array.isArray(items) ? items : [],
+    pageBreakdown: Array.isArray(pageBreakdown) ? pageBreakdown : [],
     invoiceDate: invoiceDate ? new Date(invoiceDate) : new Date(),
     imageData: imagesList[0] || imageData || "",
     images: imagesList,
@@ -71,13 +76,18 @@ const createInvoice = asyncHandler(async (req, res) => {
  * @route PUT /api/accounting/invoices/:id
  */
 const updateInvoice = asyncHandler(async (req, res) => {
-  const { invoiceNumber, supplier, category, amount, invoiceDate, imageData, images, notes } = req.body;
+  const { invoiceNumber, supplier, category, amount, subtotal, taxAmount, taxDetails, items, pageBreakdown, invoiceDate, imageData, images, notes } = req.body;
   
   const updateData = {};
   if (invoiceNumber !== undefined) updateData.invoiceNumber = invoiceNumber;
   if (supplier !== undefined) updateData.supplier = supplier;
   if (category !== undefined) updateData.category = category;
   if (amount !== undefined) updateData.amount = Number(amount);
+  if (subtotal !== undefined) updateData.subtotal = Number(subtotal);
+  if (taxAmount !== undefined) updateData.taxAmount = Number(taxAmount);
+  if (taxDetails !== undefined) updateData.taxDetails = taxDetails;
+  if (items !== undefined) updateData.items = items;
+  if (pageBreakdown !== undefined) updateData.pageBreakdown = pageBreakdown;
   if (invoiceDate !== undefined) updateData.invoiceDate = new Date(invoiceDate);
   if (notes !== undefined) updateData.notes = notes;
 

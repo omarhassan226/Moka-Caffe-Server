@@ -21,6 +21,38 @@ const InvoiceSchema = new mongoose.Schema(
       required: true,
       min: 0
     },
+    subtotal: {
+      type: Number,
+      default: 0
+    },
+    taxAmount: {
+      type: Number,
+      default: 0
+    },
+    taxDetails: {
+      vat14: { type: Number, default: 0 },
+      schedule5: { type: Number, default: 0 },
+      other: { type: Number, default: 0 }
+    },
+    items: [
+      {
+        page: { type: Number, default: 1 },
+        name: { type: String, default: "" },
+        quantity: { type: Number, default: 1 },
+        unitPrice: { type: Number, default: 0 },
+        totalPrice: { type: Number, default: 0 }
+      }
+    ],
+    pageBreakdown: [
+      {
+        page: { type: Number, default: 1 },
+        subtotal: { type: Number, default: 0 },
+        taxAmount: { type: Number, default: 0 },
+        total: { type: Number, default: 0 },
+        itemsCount: { type: Number, default: 0 },
+        note: { type: String, default: "" }
+      }
+    ],
     invoiceDate: {
       type: Date,
       default: Date.now,

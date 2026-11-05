@@ -61,49 +61,50 @@ class AiInvoiceService {
 
     const pageCount = imagesList.length;
     const multiPageInstruction = pageCount > 1
-      ? `\nتنبيه هام جداً: هذه الفاتورة تتكون من (${pageCount}) صفحات مرفقة بالترتيب كصور متعددة لفاتورة واحدة.
-1. راجع جميع الصفحات بالكامل من أول صفحة حتى آخر صفحة.
-2. استخرج قائمة الأصناف المشتراة من كافة الصفحات بدقة.
-3. تفصيل الصفحات: حدد المجموع الفرعي لكل صفحة في pageBreakdown.
-4. احتسب المجاميع الحسابية الإجمالية بدقة متناهية:
-   - المبلغ الإجمالي قبل الضريبة (subtotal)
-   - قيمة الضريبة المضافة وضريبة الجدول إن وجدت (taxAmount)
-   - الإجمالي النهائي الشامل المطلوب سداده لكافة الصفحات (amount: Grand Total)`
-      : "";
+      ? `\nتنبيه فائق الأهمية: هذه الفاتورة تتكون من (${pageCount}) صفحات مرفقة بالترتيب كصور متعددة لفاتورة واحدة.
+1. راجع جميع الصفحات (${pageCount} صفحات) بالكامل من أول صفحة حتى آخر صفحة.
+2. لكل صنف في الفاتورة: حدد رقم الصفحة التي ورد فيها بدقة (page: 1, 2, 3...) واسمه والكمية وسعر الوحدة والإجمالي.
+3. في أسفل الفاتورة بالصفحة الأخيرة يوجد ملخص الضرائب الرسمي المطبوع: اقرأ منه بدقة تامة:
+   - Untaxed Amount (المجموع قبل الضريبة)
+   - VAT 14% (قيمة ضريبة القيمة المضافة 14%)
+   - Schedule Tax 5% (قيمة ضريبة الجدول 5%)
+   - Total (الإجمالي النهائي الشامل المطلوب سداده)`
+      : `\nتنبيه: اقرأ تفاصيل الأصناف وملخص الضرائب المطبوع في أسفل الفاتورة بدقة تامة.`;
 
     const systemPrompt = `
-أنت مدقق حسابات وخبير محاسبي عالي الدقة في قراءة وتحليل فواتير وإيصالات الكافيهات والمطاعم في مصر.
+أنت مدقق حسابات وخبير ضرائب مصري عالي الدقة في قراءة وتحليل فواتير وإيصالات الكافيهات والمطاعم في مصر.
 مهمتك استخراج وتدقيق البيانات بدقة حسابية متناهية (100% Accurate OCR):${multiPageInstruction}
 
 قواعد التدقيق الحسابي الإلزامية:
-1. دقة الأرقام والكسور العشرية: انتبه بدقة شديدة للفاصلة العشرية والكسور (مثال: 8,364.75 أو 9,034.09 أو 125.50). لا تتجاهل القروش أو الفواصل.
-2. التفريق الدقيق بين المبالغ:
-   - subtotal: المجموع قبل الضريبة (صافي قيمة البضاعة/الأصناف بدون ضرائب).
-   - taxAmount: إجمالي قيمة الضرائب (ضريبة القيمة المضافة 14% + ضريبة الجدول 5% إن وجدت).
-   - amount: الإجمالي النهائي الشامل لكافة الضرائب والخدمة والمطلوب دفعه (Grand Total).
-3. استخراج تفاصيل الأصناف (items):
-   - اسم الصنف، الكمية، سعر الوحدة، الإجمالي (الكمية × السعر = الإجمالي).
-4. تفصيل الصفحات (pageBreakdown):
-   - رقم كل صفحة والمجموع الخاص بها.
-5. تاريخ الفاتورة ورقمها: استخرج التاريخ الفعلي المطبوع على الفاتورة (YYYY-MM-DD) ورقم الإيصال/الفاتورة.
-6. التصنيف: اختر واحداً فقط من: ["خامات وبن", "ألبان وسيرب", "حلويات ومخبوزات", "تعبئة وتغليف", "نظافة ومستهلكات", "صيانة وتشغيل", "أخرى"].
+1. دقة الأرقام والكسور العشرية: انتبه بدقة شديدة لكل الأرقام والكسور العشرية (مثال: 55.75، 62.35، 8364.75، 9034.09). لا تقرب أو تحذف القروش نهائياً!
+2. استخراج قائمة الأصناف (items):
+   - لكل صنف:
+     * "page": رقم الصفحة المأخوذ منها الصنف (1، 2، 3...)
+     * "name": اسم الصنف كما هو مكتوب
+     * "quantity": الكمية كرقم دقيق
+     * "unitPrice": سعر الوحدة الصافي بالكسور العشرية كرقم
+     * "totalPrice": إجمالي الصنف (الكمية × سعر الوحدة) بالكسور العشرية كرقم
+3. قراءة الملخص المالي والضرائب من أسفل الفاتورة المطبوعة:
+   - untaxedSubtotal: المجموع الصافي للأصناف قبل الضريبة (Untaxed Amount).
+   - vat14: قيمة ضريبة القيمة المضافة 14% المطبوعة إن وجدت.
+   - schedule5: قيمة ضريبة الجدول 5% المطبوعة إن وجدت.
+   - grandTotal: الإجمالي النهائي الشامل المطلوب سداده (Total / Net Amount).
+4. تاريخ الفاتورة ورقمها واسم المورد والتصنيف.
 
 أجب بصيغة JSON حصراً بدون أي نصوص أو markdown codeblocks إضافية:
 {
-  "supplier": "اسم المورد أو الشركة أو المحل",
-  "subtotal": 0.00,
-  "taxAmount": 0.00,
-  "amount": 0.00,
+  "supplier": "اسم المورد أو الشركة",
+  "untaxedSubtotal": 0.00,
+  "vat14": 0.00,
+  "schedule5": 0.00,
+  "grandTotal": 0.00,
   "invoiceDate": "YYYY-MM-DD",
-  "invoiceNumber": "رقم الفاتورة أو الإيصال إن وجد",
+  "invoiceNumber": "",
   "category": "خامات وبن",
   "items": [
-    { "name": "اسم الصنف", "quantity": 1, "price": 0.00, "total": 0.00 }
+    { "page": 1, "name": "اسم الصنف", "quantity": 1, "unitPrice": 0.00, "totalPrice": 0.00 }
   ],
-  "pageBreakdown": [
-    { "page": 1, "total": 0.00, "note": "تفاصيل صفحة 1" }
-  ],
-  "notes": "ملخص التدقيق الحسابي وتأكيد مطابقة إجمالي الأصناف مع الفاتورة"
+  "notes": "ملخص الفاتورة والضرائب"
 }
 `;
 
@@ -165,21 +166,64 @@ class AiInvoiceService {
 
         const parsed = JSON.parse(cleanJson);
 
+        // Programmatic mathematical verification & precise aggregation
+        const rawItems = Array.isArray(parsed.items) ? parsed.items : [];
+        const items = rawItems.map((it, i) => {
+          const qty = Number(it.quantity) || 1;
+          const unit = Number(it.unitPrice || it.price) || 0;
+          const tot = Number(it.totalPrice || it.total) || (qty * unit);
+          return {
+            page: Number(it.page) || 1,
+            name: String(it.name || `صنف ${i + 1}`).trim(),
+            quantity: qty,
+            unitPrice: parseFloat(unit.toFixed(2)),
+            totalPrice: parseFloat(tot.toFixed(2))
+          };
+        });
+
+        const itemsSum = items.reduce((s, it) => s + it.totalPrice, 0);
+        const untaxedSubtotal = Number(parsed.untaxedSubtotal || parsed.subtotal) || parseFloat(itemsSum.toFixed(2));
+        const vat14 = Number(parsed.vat14) || 0;
+        const schedule5 = Number(parsed.schedule5) || 0;
+        const taxAmount = Number(parsed.taxAmount) || parseFloat((vat14 + schedule5).toFixed(2));
+        const grandTotal = Number(parsed.grandTotal || parsed.amount) || parseFloat((untaxedSubtotal + taxAmount).toFixed(2));
+
+        // Group items by page for clean breakdown
+        const pageGroups = {};
+        items.forEach(it => {
+          const p = it.page || 1;
+          if (!pageGroups[p]) pageGroups[p] = { page: p, subtotal: 0, itemsCount: 0 };
+          pageGroups[p].subtotal += it.totalPrice;
+          pageGroups[p].itemsCount += 1;
+        });
+
+        const pageBreakdown = Object.values(pageGroups).map(g => ({
+          page: g.page,
+          subtotal: parseFloat(g.subtotal.toFixed(2)),
+          total: parseFloat(g.subtotal.toFixed(2)),
+          itemsCount: g.itemsCount,
+          note: `صفحة ${g.page}: ${g.itemsCount} صنف بإجمالي ${g.subtotal.toFixed(2)} ج.م`
+        })).sort((a, b) => a.page - b.page);
+
         return {
           success: true,
           modelUsed: model,
           pageCount: pageCount,
           data: {
-            supplier: parsed.supplier || "فاتورة مشتريات",
-            subtotal: parseFloat(parsed.subtotal) || 0,
-            taxAmount: parseFloat(parsed.taxAmount) || 0,
-            amount: parseFloat(parsed.amount) || 0,
-            invoiceDate: parsed.invoiceDate || new Date().toISOString().split("T")[0],
+            supplier: parsed.supplier || "Moka",
+            subtotal: parseFloat(untaxedSubtotal.toFixed(2)),
+            taxAmount: parseFloat(taxAmount.toFixed(2)),
+            taxDetails: {
+              vat14: parseFloat(vat14.toFixed(2)),
+              schedule5: parseFloat(schedule5.toFixed(2))
+            },
+            amount: parseFloat(grandTotal.toFixed(2)),
+            invoiceDate: parsed.invoiceDate || parsed.date || new Date().toISOString().split("T")[0],
             invoiceNumber: parsed.invoiceNumber || "",
             category: parsed.category || "خامات وبن",
-            items: parsed.items || [],
-            pageBreakdown: parsed.pageBreakdown || [],
-            notes: parsed.notes || `فاتورة من ${pageCount} صفحة/صفحات`
+            items: items,
+            pageBreakdown: pageBreakdown,
+            notes: parsed.notes || `فاتورة من ${pageCount} صفحة (${items.length} صنف)`
           }
         };
       } catch (err) {

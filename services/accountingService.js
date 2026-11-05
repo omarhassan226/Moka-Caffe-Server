@@ -127,6 +127,11 @@ class AccountingService {
     if (data.supplier !== undefined) invoice.supplier = data.supplier;
     if (data.category !== undefined) invoice.category = data.category;
     if (data.amount !== undefined) invoice.amount = Number(data.amount);
+    if (data.subtotal !== undefined) invoice.subtotal = Number(data.subtotal);
+    if (data.taxAmount !== undefined) invoice.taxAmount = Number(data.taxAmount);
+    if (data.taxDetails !== undefined) invoice.taxDetails = data.taxDetails;
+    if (data.items !== undefined) invoice.items = data.items;
+    if (data.pageBreakdown !== undefined) invoice.pageBreakdown = data.pageBreakdown;
     if (data.invoiceDate !== undefined) invoice.invoiceDate = new Date(data.invoiceDate);
     if (data.notes !== undefined) invoice.notes = data.notes;
 
