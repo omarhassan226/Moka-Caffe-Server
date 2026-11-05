@@ -40,7 +40,9 @@ const InvoiceSchema = new mongoose.Schema(
         name: { type: String, default: "" },
         quantity: { type: Number, default: 1 },
         unitPrice: { type: Number, default: 0 },
-        totalPrice: { type: Number, default: 0 }
+        taxType: { type: String, default: "SCHD 5%" },
+        totalPrice: { type: Number, default: 0 },
+        taxIncluded: { type: Number, default: 0 }
       }
     ],
     pageBreakdown: [

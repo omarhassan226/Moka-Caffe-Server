@@ -78,12 +78,14 @@ class AiInvoiceService {
 قواعد التدقيق الحسابي الإلزامية:
 1. دقة الأرقام والكسور العشرية: انتبه بدقة شديدة لكل الأرقام والكسور العشرية (مثال: 55.75، 62.35، 8364.75، 9034.09). لا تقرب أو تحذف القروش نهائياً!
 2. استخراج قائمة الأصناف (items):
-   - لكل صنف:
+   - لكل صنف استخرج بدقة من أعمدة الفاتورة:
      * "page": رقم الصفحة المأخوذ منها الصنف (1، 2، 3...)
      * "name": اسم الصنف كما هو مكتوب
      * "quantity": الكمية كرقم دقيق
      * "unitPrice": سعر الوحدة الصافي بالكسور العشرية كرقم
-     * "totalPrice": إجمالي الصنف (الكمية × سعر الوحدة) بالكسور العشرية كرقم
+     * "taxType": نوع ونسبة الضريبة المطبوعة في عمود Taxes (مثال: "SCHD 5%" أو "VAT 14%" أو "0%")
+     * "totalPrice": إجمالي الصنف قبل الضريبة المطبوع في عمود Amount
+     * "taxIncluded": إجمالي الصنف شامل الضريبة المطبوع في عمود Tax Incl. (المبلغ بعد إضافة الضريبة)
 3. قراءة الملخص المالي والضرائب من أسفل الفاتورة المطبوعة:
    - untaxedSubtotal: المجموع الصافي للأصناف قبل الضريبة (Untaxed Amount).
    - vat14: قيمة ضريبة القيمة المضافة 14% المطبوعة إن وجدت.
@@ -102,7 +104,7 @@ class AiInvoiceService {
   "invoiceNumber": "",
   "category": "خامات وبن",
   "items": [
-    { "page": 1, "name": "اسم الصنف", "quantity": 1, "unitPrice": 0.00, "totalPrice": 0.00 }
+    { "page": 1, "name": "اسم الصنف", "quantity": 1, "unitPrice": 0.00, "taxType": "SCHD 5%", "totalPrice": 0.00, "taxIncluded": 0.00 }
   ],
   "notes": "ملخص الفاتورة والضرائب"
 }
@@ -171,38 +173,58 @@ class AiInvoiceService {
         const items = rawItems.map((it, i) => {
           const qty = Number(it.quantity) || 1;
           const unit = Number(it.unitPrice || it.price) || 0;
-          const tot = Number(it.totalPrice || it.total) || (qty * unit);
+          const taxType = String(it.taxType || it.taxes || "SCHD 5%").trim();
+          const tot = Number(it.totalPrice || it.amount || it.total) || (qty * unit);
+
+          // Calculate tax rate per item
+          let rate = 0;
+          if (taxType.includes("14") || taxType.toUpperCase().includes("VAT")) {
+            rate = 0.14;
+          } else if (taxType.includes("5") || taxType.toUpperCase().includes("SCHD")) {
+            rate = 0.05;
+          }
+
+          let taxIncl = Number(it.taxIncluded || it.taxIncl);
+          if (!taxIncl || isNaN(taxIncl)) {
+            taxIncl = tot * (1 + rate);
+          }
+
           return {
             page: Number(it.page) || 1,
             name: String(it.name || `صنف ${i + 1}`).trim(),
             quantity: qty,
             unitPrice: parseFloat(unit.toFixed(2)),
-            totalPrice: parseFloat(tot.toFixed(2))
+            taxType: taxType,
+            totalPrice: parseFloat(tot.toFixed(2)),
+            taxIncluded: parseFloat(taxIncl.toFixed(2))
           };
         });
 
-        const itemsSum = items.reduce((s, it) => s + it.totalPrice, 0);
-        const untaxedSubtotal = Number(parsed.untaxedSubtotal || parsed.subtotal) || parseFloat(itemsSum.toFixed(2));
+        const itemsSubtotal = items.reduce((s, it) => s + it.totalPrice, 0);
+        const itemsTaxInclSum = items.reduce((s, it) => s + it.taxIncluded, 0);
+        const untaxedSubtotal = Number(parsed.untaxedSubtotal || parsed.subtotal) || parseFloat(itemsSubtotal.toFixed(2));
+        const grandTotal = Number(parsed.grandTotal || parsed.amount) || parseFloat(itemsTaxInclSum.toFixed(2));
         const vat14 = Number(parsed.vat14) || 0;
         const schedule5 = Number(parsed.schedule5) || 0;
-        const taxAmount = Number(parsed.taxAmount) || parseFloat((vat14 + schedule5).toFixed(2));
-        const grandTotal = Number(parsed.grandTotal || parsed.amount) || parseFloat((untaxedSubtotal + taxAmount).toFixed(2));
+        const taxAmount = Number(parsed.taxAmount) || parseFloat((grandTotal - untaxedSubtotal).toFixed(2));
 
         // Group items by page for clean breakdown
         const pageGroups = {};
         items.forEach(it => {
           const p = it.page || 1;
-          if (!pageGroups[p]) pageGroups[p] = { page: p, subtotal: 0, itemsCount: 0 };
+          if (!pageGroups[p]) pageGroups[p] = { page: p, subtotal: 0, taxIncluded: 0, itemsCount: 0 };
           pageGroups[p].subtotal += it.totalPrice;
+          pageGroups[p].taxIncluded += it.taxIncluded;
           pageGroups[p].itemsCount += 1;
         });
 
         const pageBreakdown = Object.values(pageGroups).map(g => ({
           page: g.page,
           subtotal: parseFloat(g.subtotal.toFixed(2)),
-          total: parseFloat(g.subtotal.toFixed(2)),
+          taxIncluded: parseFloat(g.taxIncluded.toFixed(2)),
+          total: parseFloat(g.taxIncluded.toFixed(2)),
           itemsCount: g.itemsCount,
-          note: `صفحة ${g.page}: ${g.itemsCount} صنف بإجمالي ${g.subtotal.toFixed(2)} ج.م`
+          note: `صفحة ${g.page}: ${g.itemsCount} صنف (صافي ${g.subtotal.toFixed(2)} | شامل ${g.taxIncluded.toFixed(2)} ج.م)`
         })).sort((a, b) => a.page - b.page);
 
         return {
