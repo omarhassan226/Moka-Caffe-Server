@@ -122,19 +122,18 @@ class AiInvoiceService {
       ],
       generationConfig: {
         temperature: 0.1,
+        maxOutputTokens: 16384,
         responseMimeType: "application/json"
       }
     };
 
-    // Prioritized models: gemini-3.1-flash-lite and gemini-flash-lite-latest have active quota & instant response
+    // Prioritized models: gemini-2.5-flash has state-of-the-art vision OCR accuracy across multi-page receipts
     const models = [
-      "gemini-3.1-flash-lite",
+      "gemini-2.5-flash",
+      "gemini-flash-latest",
       "gemini-flash-lite-latest",
-      "gemini-3.5-flash-lite",
-      "gemini-3.5-flash",
-      "gemini-3.6-flash",
-      "gemini-3.7-flash",
-      "gemini-3.8-flash"
+      "gemini-2.5-flash-lite",
+      "gemini-3.1-flash-lite"
     ];
     let lastError = null;
 
@@ -209,14 +208,18 @@ class AiInvoiceService {
         const itemsSubtotal = items.reduce((s, it) => s + it.totalPrice, 0);
         const itemsTaxInclSum = items.reduce((s, it) => s + it.taxIncluded, 0);
 
-        // Ground truth: When items are extracted, their exact mathematical sum is the true audited invoice total
-        const untaxedSubtotal = items.length > 0
-          ? parseFloat(itemsSubtotal.toFixed(2))
-          : (Number(parsed.untaxedSubtotal || parsed.subtotal) || 0);
+        // Ground truth: The printed footer grand total and untaxed subtotal from the supplier's receipt
+        // are the legal, official financial amounts. Line items are audited against them.
+        const parsedSubtotal = Number(parsed.untaxedSubtotal || parsed.subtotal) || 0;
+        const parsedGrandTotal = Number(parsed.grandTotal || parsed.amount) || 0;
 
-        const grandTotal = items.length > 0
-          ? parseFloat(itemsTaxInclSum.toFixed(2))
-          : (Number(parsed.grandTotal || parsed.amount) || 0);
+        const untaxedSubtotal = parsedSubtotal > 0
+          ? parsedSubtotal
+          : (items.length > 0 ? parseFloat(itemsSubtotal.toFixed(2)) : 0);
+
+        const grandTotal = parsedGrandTotal > 0
+          ? parsedGrandTotal
+          : (items.length > 0 ? parseFloat(itemsTaxInclSum.toFixed(2)) : 0);
         
         // Strict dynamic taxes from invoice
         const rawVat14 = Number(parsed.vat14) || 0;

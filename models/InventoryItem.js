@@ -120,3 +120,4 @@ InventoryItemSchema.methods.recalculateStock = function () {
 };
 
 module.exports = mongoose.model("InventoryItem", InventoryItemSchema);
+

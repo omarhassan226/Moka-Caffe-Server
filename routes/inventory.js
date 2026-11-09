@@ -12,3 +12,4 @@ router.get("/movements", InventoryController.getMovements);
 router.post("/sync-local-sheets", InventoryController.syncLocalSheets);
 
 module.exports = router;
+
